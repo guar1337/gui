@@ -14,18 +14,43 @@ private:
 	TGCompositeFrame *fFileNameFrame;
 	TRootEmbeddedCanvas *fEcanvas;
 	TGLayoutHints	 *fFrameLayout, *fL5, *fL6;
-	TGButton	*fGeoCheckButton1, *fGeoCheckButton2, *fGeoCheckButton3, *fGeoCheckButton4, *fSingleFileRadio, *fDirectoryRadio;
-	TGTextEntry *fFileNameMessage;
+	TGButton	*fGeoCheckButton1, *fGeoCheckButton2, *fGeoCheckButton3, *fGeoCheckButton4, *fSingleFileRadio, *fDirectoryRadio, *fOk;
+	TGTextEntry *fFileNameMessage, *fSelectorName;
 	TGTextBuffer *fFileNameTextBuffer, *fWelcomeMessageTextBuffer;
 	TGLabel	*fFileNameLabel;
 	TGRadioButton *fRadioSingleOrDirectory;
+	TGGroupFrame *fGframe;
+
 public:
 	MyMainFrame(const TGWindow *p,UInt_t w,UInt_t h);
 	virtual ~MyMainFrame();
-	void DoDraw();
-	void openTBrowser();
 	void singleFile();
 	void ProcessSingleOrDirectory();
+	void MakeSelectorDialog();
+
+};
+
+class MakeSelector {
+
+RQ_OBJECT("MakeSelector")
+
+private:
+   TGTransientFrame    *fMain;
+   TGCompositeFrame    *fHor1;
+   TGButton            *fOk;
+   TGGroupFrame        *fGframe;
+   TGTextEntry         *fText;
+   TGLabel             *fLabel;
+   
+public:
+   MakeSelector(const TGWindow *p, const TGWindow *main, UInt_t w, UInt_t h,
+               UInt_t options = kVerticalFrame, TString fName = "empty");
+   virtual ~MakeSelector();
+
+   // slots
+   void CloseWindow();
+   void DoOK();
+   void DoSetlabel();
 };
 
 MyMainFrame::MyMainFrame(const TGWindow *p,UInt_t w,UInt_t h) {
@@ -43,7 +68,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p,UInt_t w,UInt_t h) {
 	fFileNameFrame = new TGCompositeFrame(fMainFrame, 60, 20, kHorizontalFrame);
 	fFileNameMessage	= new TGTextEntry(fFileNameFrame, fWelcomeMessageTextBuffer = new TGTextBuffer(100));
 	fWelcomeMessageTextBuffer->AddText(0, "This is a test message box.");
-	fFileNameLabel = new TGLabel(fFileNameFrame, new TGString("								Message:"));
+	fFileNameLabel = new TGLabel(fFileNameFrame, new TGString("			Message:"));
 	fFileNameFrame->AddFrame(fFileNameMessage, fL6);
 	fFileNameFrame->AddFrame(fFileNameLabel, fL6);
 	
@@ -56,9 +81,9 @@ MyMainFrame::MyMainFrame(const TGWindow *p,UInt_t w,UInt_t h) {
 	// Create a horizontal frame widget with buttons
 	TGHorizontalFrame *hframe = new TGHorizontalFrame(fMainFrame,200,40);
 
-	TGTextButton *draw = new TGTextButton(hframe,"&Draw");
-	draw->Connect("Clicked()","MyMainFrame",this,"DoDraw()");
-	hframe->AddFrame(draw, new TGLayoutHints(kLHintsCenterX,
+	TGTextButton *makeSelector = new TGTextButton(hframe,"Make Selector");
+	makeSelector->Connect("Clicked()","MyMainFrame",this,"MakeSelectorDialog()");
+	hframe->AddFrame(makeSelector, new TGLayoutHints(kLHintsCenterX,
 														  5,5,3,4));
 
 	TGTextButton *exit = new TGTextButton(hframe,"&Exit",
@@ -91,18 +116,8 @@ MyMainFrame::MyMainFrame(const TGWindow *p,UInt_t w,UInt_t h) {
 	// Map main frame
 	fMainFrame->MapWindow();
 }
-void MyMainFrame::DoDraw() {
-	// Draws function graphics in randomly chosen interval
-	TF1 *f1 = new TF1("f1","sin(x)/x",0,gRandom->Rndm()*10);
-	f1->SetLineWidth(3);
-	f1->Draw();
-	TCanvas *fCanvas = fEcanvas->GetCanvas();
-	fCanvas->cd();
-	fCanvas->Update();
-}
 
-
-void MyMainFrame::singleFile()
+void MyMainFrame::MakeSelectorDialog()
 {
 	const char *filetypes[] = { "All files",	  "*",
 										 "ROOT files",	 "*.root",
@@ -116,11 +131,133 @@ void MyMainFrame::singleFile()
 	printf("fIniDir = %s\n", fi.fIniDir);
 	new TGFileDialog(gClient->GetRoot(), fMainFrame, kFDOpen, &fi);
 	printf("Open file: %s (dir: %s)\n", fi.fFilename, fi.fIniDir);
+	TString rootFileName = fi.fFilename;
+
+	if (rootFileName.Contains(".root"))
+	{
+		printf("You have chosen %s file\n", rootFileName.Data());
+		new MakeSelector(gClient->GetRoot(), fMainFrame, 400, 200, kVerticalFrame, rootFileName);
+	}
+
+	else
+	{
+		printf("Choose .root file!\n");
+	}
+}
+
+
+
+MakeSelector::MakeSelector(const TGWindow *p, const TGWindow *main, UInt_t w, UInt_t h, 
+                    UInt_t options, TString fName)
+{
+   // 1st: to create an window with respect to its parent (main) window
+
+   fMain = new TGTransientFrame(p, main, w, h, options);
+   fMain->Connect("CloseWindow()", "MakeSelector", this, "CloseWindow()");
+
+   fHor1 = new TGHorizontalFrame(fMain, 80, 20, kFixedWidth);
+   fOk = new TGTextButton(fHor1, " &Ok ", 1);
+   fOk->Connect("Clicked()", "MakeSelector", this, "DoOK()");
+   fHor1->AddFrame(fOk, new TGLayoutHints(kLHintsTop | kLHintsLeft | kLHintsExpandX,
+                                         4, 4, 4, 4));
+   fHor1->Resize(150, fOk->GetDefaultHeight());
+   fMain->AddFrame(fHor1,new TGLayoutHints(kLHintsBottom | kLHintsRight, 2, 2, 5, 1));
+	
+   // 2nd: create widgets in the dialog
+   fText = new TGTextEntry(fMain, new TGTextBuffer(100));
+   fText->SetToolTipText("Enter the name of the TSelector");
+   fText->Connect("ReturnPressed()", "MakeSelector", this, "DoSetlabel()");
+   fMain->AddFrame(fText, new TGLayoutHints(kLHintsTop | kLHintsLeft, 5, 5, 5, 5));
+   fGframe = new TGGroupFrame(fMain, "File to process:");
+   fLabel = new TGLabel(fGframe, fName.Data());
+   fGframe->AddFrame(fLabel, new TGLayoutHints(kLHintsTop | kLHintsLeft, 5, 5, 5, 5));
+   fMain->AddFrame(fGframe, new TGLayoutHints(kLHintsExpandX, 2, 2, 1, 1));
+   fText->Resize(150, fText->GetDefaultHeight());
+
+   fMain->MapSubwindows();
+   fMain->Resize(fMain->GetDefaultSize());
+
+   // position of the dialog relative to the parent's window
+    Window_t wdum;
+    int ax, ay;
+    gVirtualX->TranslateCoordinates(main->GetId(), fMain->GetParent()->GetId(),
+              (Int_t)(((TGFrame *) main)->GetWidth() - fMain->GetWidth()) >> 1,
+              (Int_t)(((TGFrame *) main)->GetHeight() - fMain->GetHeight()) >> 1,
+              ax, ay, wdum);
+    fMain->Move(ax, ay);
+
+    fMain->SetWindowName("My Dialog");
+
+    fMain->MapWindow();
+}
+
+MakeSelector::~MakeSelector()
+{
+   delete fText; 
+   delete fLabel;
+   delete fOk;
+   delete fHor1; 
+   delete fGframe; 
+   
+   delete fMain;
+}
+
+void MakeSelector::CloseWindow()
+{
+// Called when the window is closed via the window manager.
+
+   delete this;
+}
+
+void MakeSelector::DoSetlabel()
+{
+   printf("\nThe Enter key is pressed\n");
+
+   fLabel->SetText(fText->GetBuffer()->GetString());
+   fGframe->Layout();
+
+}
+
+void MakeSelector::DoOK()
+{
+   TQObject::Disconnect(fText, "ReturnPressed()", this, "DoSetlabel()");
+	TString selectorName = fText->GetBuffer()->GetString();
+	TString emptyString;
+	if (selectorName==emptyString)
+	{
+		printf("No name specified\n");
+
+	}
+
+	else
+	{
+		printf("\nThe OK button is pressed\t%s\n",fText->GetBuffer()->GetString());
+	}
+	
+   
+   fMain->SendCloseMessage();
+
+}
+
+void MyMainFrame::singleFile()
+{
+	const char *filetypes[] = { "All files",	  "*",
+										 "ROOT files",	 "*.root",
+										 "ROOT macros",	"*.C",
+										 "Text files",	 "*.[tT][xX][tT]",
+										 0,					0 };
+	TString dir("home/zalewski/Desktop");
+	TGFileInfo fi;
+	fi.fFileTypes = filetypes;
+	fi.fIniDir	 = dir;
+	printf("fIniDir = %s\n", fi.fIniDir);
+	new TGFileDialog(gClient->GetRoot(), fMainFrame, kFDOpen, &fi);
+	printf("Open file: %s (dir: %s)\n", fi.fFilename, fi.fIniDir);
 	dir = fi.fIniDir;
 
 	fFileNameMessage->SetText(dir.Data());
 	fFileNameLabel->SetText("Process single file: ");
-	gSystem->Exec("make");
+	//gSystem->Exec("make");
 }
 
 void MyMainFrame::ProcessSingleOrDirectory()
